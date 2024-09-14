@@ -1,5 +1,5 @@
 import tensorflow as tf
-from tensorflow.keras import layers, models
+from tensorflow.keras import layers, models # type: ignore
 
 class ConvBlock(tf.keras.layers.Layer):
     def __init__(self, num_filters):
