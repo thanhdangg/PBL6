@@ -9,6 +9,7 @@
         "tensorflowjs",
         "tensorflow.js",
         "mobilenet",
-        "unet"
+        "unet",
+        "kaggle"
     ]
 }

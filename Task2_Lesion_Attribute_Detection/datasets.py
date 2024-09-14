@@ -26,11 +26,11 @@ os.makedirs(KAGGLE_INPUT_PATH, 0o777, exist_ok=True)
 os.makedirs(KAGGLE_WORKING_PATH, 0o777, exist_ok=True)
 
 try:
-    os.symlink(KAGGLE_INPUT_PATH, os.path.join("..", 'input'), target_is_directory=True)
+    os.symlink(KAGGLE_INPUT_PATH, os.path.join(".", 'input'), target_is_directory=True)
 except FileExistsError:
     pass
 try:
-    os.symlink(KAGGLE_WORKING_PATH, os.path.join("..", 'working'), target_is_directory=True)
+    os.symlink(KAGGLE_WORKING_PATH, os.path.join(".", 'working'), target_is_directory=True)
 except FileExistsError:
     pass
 

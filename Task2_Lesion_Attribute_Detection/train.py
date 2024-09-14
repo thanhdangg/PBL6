@@ -7,21 +7,16 @@ from tensorflow.keras.callbacks import EarlyStopping # type: ignore
 from image_process import process_images_in_folder
 from model import MultiTaskUNet 
 
-def load_data(input_folder, label_folder, image_size):
+def load_data(input_folder, image_size):
     # Load processed images
-    images, _ = process_images_in_folder(input_folder, image_size)
-    
-    # Load labels 
-    labels, _ = process_images_in_folder(label_folder, image_size)  
-
-    return images, labels
+    images, masks, _ = process_images_in_folder(input_folder, image_size)
+    return images, masks
 
 def main():
     parser = argparse.ArgumentParser(description="Train a U-Net model for lesion attribute detection.")
     arg = parser.add_argument
 
-    arg("--input_folder", type=str, default="./data/ISIC2018_Task1-2_Training_Input", help="Path to the folder containing input images.")
-    arg("--label_folder", type=str, default="./data/ISIC2018_Task1_Training_GroundTruth", help="Path to the folder containing ground truth labels.")
+    arg("--input_folder", type=str, default="/kaggle/input/isic2018-challenge-task1-data-segmentation/ISIC2018_Task1-2_Training_Input", help="Path to the folder containing input images.")
     arg("--size", type=int, nargs=2, default=(256, 256), help="Size to resize the images to (width height).")
     arg("--epochs", type=int, default=50, help="Number of training epochs.")
     arg("--batch_size", type=int, default=16, help="Batch size for training.")
@@ -31,7 +26,7 @@ def main():
     args = parser.parse_args()
 
     # Load data
-    images, labels = load_data(args.input_folder, args.label_folder, tuple(args.size))
+    images, labels = load_data(args.input_folder, tuple(args.size))
 
     # Split into training and validation sets
     x_train, x_val, y_train, y_val = train_test_split(images, labels, test_size=0.2, random_state=42)
