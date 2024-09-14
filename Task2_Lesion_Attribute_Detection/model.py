@@ -1,4 +1,5 @@
 import tensorflow as tf
+from tensorflow.keras.models import Model # type: ignore
 from tensorflow.keras import layers, models # type: ignore
 
 class ConvBlock(tf.keras.layers.Layer):
@@ -27,7 +28,7 @@ class Bottleneck(tf.keras.layers.Layer):
     def __init__(self, num_filters):
         super(Bottleneck, self).__init__()
         self.conv_block = ConvBlock(num_filters)
-    
+        
     def call(self, inputs):
         return self.conv_block(inputs)
 
@@ -58,23 +59,16 @@ class MultiTaskUNet(tf.keras.Model):
         
         # Bottleneck
         self.bottleneck = Bottleneck(1024)
-        
+                
         # Decoder blocks
         self.dec1 = DecoderBlock(512)
         self.dec2 = DecoderBlock(256)
         self.dec3 = DecoderBlock(128)
         self.dec4 = DecoderBlock(64)
         
-        # Shared output block
-        self.shared_conv = layers.Conv2D(64, kernel_size=(3, 3), padding='same', activation='relu')
-        
-        # Multi-task outputs
-        self.output1 = layers.Conv2D(1, kernel_size=(1, 1), padding='same', activation='sigmoid', name='pigment_network')
-        self.output2 = layers.Conv2D(1, kernel_size=(1, 1), padding='same', activation='sigmoid', name='negative_network')
-        self.output3 = layers.Conv2D(1, kernel_size=(1, 1), padding='same', activation='sigmoid', name='streaks')
-        self.output4 = layers.Conv2D(1, kernel_size=(1, 1), padding='same', activation='sigmoid', name='milia_like_cysts')
-        self.output5 = layers.Conv2D(1, kernel_size=(1, 1), padding='same', activation='sigmoid', name='globules')
-    
+        # output
+        self.outputs = layers.Conv2D(1, kernel_size=(1, 1), activation='sigmoid')
+
     def call(self, inputs):
         # Encoder
         s1, p1 = self.enc1(inputs)
@@ -91,28 +85,9 @@ class MultiTaskUNet(tf.keras.Model):
         d3 = self.dec3(d2, s2)
         d4 = self.dec4(d3, s1)
         
-        # Shared output
-        shared_output = self.shared_conv(d4)
-        
-        # Multi-task outputs
-        out1 = self.output1(shared_output)
-        out2 = self.output2(shared_output)
-        out3 = self.output3(shared_output)
-        out4 = self.output4(shared_output)
-        out5 = self.output5(shared_output)
-        
-        return [out1, out2, out3, out4, out5]
+        # Output
+        outputs = self.outputs(d4)
+            
+        model = Model(inputs=[inputs], outputs=[outputs])
 
-# # Define the input shape (e.g., 256x256x3)
-# input_shape = (256, 256, 3)
-# inputs = layers.Input(shape=input_shape)
-
-# # Instantiate the multi-task U-Net model
-# model = MultiTaskUNet(input_shape)
-
-# # Compile the model
-# model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-
-# # Print the model summary
-# model.build(input_shape=(None, *input_shape))
-# model.summary()
+        return model
