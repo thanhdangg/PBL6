@@ -125,6 +125,7 @@ def main():
     print(f"Training on device: {device}")
 
     for epoch in range(args.epochs):
+        print(f"Epoch {epoch+1}/{args.epochs}:")
         model.train()
         running_loss = 0.0
         for images, masks in dataloader:
@@ -134,8 +135,10 @@ def main():
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
+            print(f"Training on batch: {images.shape}, loss: {loss.shape}")
 
-        print(f"Epoch [{epoch+1}/{args.epochs}], Loss: {running_loss/len(dataloader)}")
+
+        print(f"Epoch [{epoch+1}/{args.epochs}], Loss: {running_loss/len(dataloader)},running_loss: {running_loss}")
 
 if __name__ == "__main__":
     main()
