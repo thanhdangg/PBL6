@@ -3,15 +3,17 @@ import cv2
 import numpy as np
 import os
 from PIL import Image
+import torch
 import torchvision.transforms as transforms
 
 class ImagePreprocessor:
-    def __init__(self, input_dir, output_dir, target_size=(256, 256)):
+    def __init__(self, input_dir, output_dir, ground_truth_dir, target_size=(256, 256)):
         self.input_dir = input_dir
         self.output_dir = output_dir
+        self.ground_truth_dir = ground_truth_dir
         self.target_size = target_size
 
-        # Define transformations
+        # Define transformations for input images
         self.transform = transforms.Compose([
             transforms.Resize(self.target_size),
             transforms.ToTensor(),
@@ -25,16 +27,31 @@ class ImagePreprocessor:
             transforms.RandomRotation(30),
             transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1)
         ])
+        
+        self.to_pil = transforms.ToPILImage()
 
-    def process_image(self, image_path):
-        """
-        Process an individual image: load, resize, normalize, and return as tensor.
-        """
-        # Load image
-        image = Image.open(image_path).convert('RGB')
 
-        # Apply transformations
-        image = self.transform(image)
+
+    def process_image(self, image_path, is_mask=False):
+        """
+        Process an individual image or mask: load, resize, normalize, and return as tensor.
+        """
+        # Load image or mask (grayscale for mask, RGB for image)
+        image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE if is_mask else cv2.IMREAD_COLOR)
+        if image is None:
+            raise ValueError(f"Could not read image at {image_path}")
+
+        # If it's a mask, ensure it's binary (0 or 255)
+        # if is_mask:
+        #     image = (image == 255).astype(np.uint8)
+        
+        # Resize image
+        image = cv2.resize(image, self.target_size)
+        
+        # Convert image to PIL Image
+        image = Image.fromarray(image)
+        if not is_mask:
+            image = self.transform(image)
 
         return image
 
@@ -45,28 +62,43 @@ class ImagePreprocessor:
         augmented_image = self.augmentation(image)
         return augmented_image
 
-    def save_image(self, image_tensor, output_path):
+    def save_image(self, image, output_path):
         """
-        Save the processed image tensor back as a PNG image.
+        Save the processed image or mask as a PNG image.
         """
-        # Convert the tensor back to PIL Image
-        image = transforms.ToPILImage()(image_tensor)
+        # If image is a tensor, convert it to PIL Image
+        if isinstance(image, torch.Tensor):
+            image = self.to_pil(image)
 
         # Save image
         image.save(output_path)
 
     def process_and_save(self, image_filename, augment=False):
         """
-        Process an image file, save the processed image, and optionally save augmented versions.
+        Process an image file and its corresponding masks, save the processed image, and optionally save augmented versions.
         """
+        # Extract the image ID (e.g., ISIC_<image_id>) from the filename
+        image_id = image_filename.split('.')[0]  # Assuming filenames are like 'ISIC_<image_id>.jpg'
         input_path = os.path.join(self.input_dir, image_filename)
         output_path = os.path.join(self.output_dir, image_filename)
 
-        # Process image
+        # Process the input image
         image = self.process_image(input_path)
 
-        # Save the processed image
+        # Save the processed input image
         self.save_image(image, output_path)
+
+        # Process corresponding mask images for each attribute
+        attributes = ["pigment_network", "negative_network", "streaks", "milia_like_cyst", "globules"]
+        for attribute in attributes:
+            mask_filename = f"{image_id}_attribute_{attribute}.png"
+            mask_path = os.path.join(self.ground_truth_dir, mask_filename)
+            if os.path.exists(mask_path):
+                mask = self.process_image(mask_path, is_mask=True)
+                mask_output_path = os.path.join(self.output_dir, f"{image_id}_attribute_{attribute}.png")
+                self.save_image(mask, mask_output_path)
+            else:
+                print(f"Mask not found for {image_filename} with attribute {attribute}.")
 
         # Optional: Save augmented images
         if augment:
@@ -88,21 +120,19 @@ class ImagePreprocessor:
                 self.process_and_save(image_filename, augment)
 
 
-
-
 def main():
     parser = argparse.ArgumentParser(description="Process and augment images.")
     arg = parser.add_argument
 
     arg("--input_dir", type=str,default ="./data/ISIC2018_Task1-2_Training_Input", help="Path to the input folder containing images.")
-    # arg("--input_dir", type=str,default ="/kaggle/input/isic2018-challenge-task1-data-segmentation/ISIC2018_Task1-2_Training_Input", help="Path to the input folder containing images.")
     arg("--output_dir", type=str,default ="./data/Input_Processed", help="Path to the output folder to save processed images.")
+    arg("--ground_truth_dir", type=str, default="./data/ISIC2018_Task1-2_Training_GroundTruth", help="Path to the ground truth masks directory.")
     arg("--size", type=int, nargs=2, default=(256, 256), help="Size to resize the images to (width height).")
     arg('--augment', action='store_true', help='If set, apply data augmentation')
 
     args = parser.parse_args()
     
-    processor = ImagePreprocessor(args.input_dir, args.output_dir, target_size=tuple(args.size))
+    processor = ImagePreprocessor(args.input_dir, args.output_dir, args.ground_truth_dir, target_size=tuple(args.size))
     
     # Process all images with optional augmentation
     processor.process_all_images(augment=args.augment)
