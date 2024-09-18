@@ -10,6 +10,12 @@
         "tensorflow.js",
         "mobilenet",
         "unet",
-        "kaggle"
+        "kaggle",
+        "jaccard",
+        "coeff",
+        "upconv",
+        "randn",
+        "optim",
+        "torchvision"
     ]
 }

@@ -1,17 +1,47 @@
 import argparse
 import numpy as np
-from sklearn.model_selection import train_test_split
-from tensorflow.keras.callbacks import ModelCheckpoint # type: ignore
-from tensorflow.keras.optimizers import Adam # type: ignore
-from tensorflow.keras.callbacks import EarlyStopping # type: ignore
-from image_process import process_images_in_folder
-from model import MultiTaskUNet 
+import torch
+import torch.optim as optim
+from torch.utils.data import DataLoader
+from image_preprocess import ImagePreprocessor
+from model import create_unet_model
+from loss import HybridLossDice
 
-def load_data(input_folder, image_size):
-    # Load processed images
-    images, masks, _ = process_images_in_folder(input_folder, image_size)
-    return images, masks
 
+def train_model(args):
+    # Initialize the image preprocessor
+    processor = ImagePreprocessor(args.input_folder, args.input_folder, target_size=tuple(args.size))
+    
+    # Create dataloader
+    dataset = processor.get_dataloader(batch_size=args.batch_size)
+    
+    # Initialize the model
+    model = create_unet_model(in_channels=3, out_channels=1, init_features=32).to('cuda')
+    
+    # Define the loss function and optimizer
+    criterion = HybridLossDice(weight_bce=1.0, weight_dice=1.0)
+    optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+    
+    # Training loop
+    for epoch in range(args.epochs):
+        model.train()
+        running_loss = 0.0
+        for images, masks in dataset:
+            images = images.to('cuda')
+            masks = masks.to('cuda')
+            
+            optimizer.zero_grad()
+            outputs = model(images)
+            loss = criterion(outputs, masks)
+            loss.backward()
+            optimizer.step()
+            
+            running_loss += loss.item()
+        
+        print(f"Epoch {epoch+1}/{args.epochs}, Loss: {running_loss/len(dataset)}")
+    
+    # Save the trained model
+    torch.save(model.state_dict(), args.output_model)
 def main():
     parser = argparse.ArgumentParser(description="Train a U-Net model for lesion attribute detection.")
     arg = parser.add_argument
@@ -24,33 +54,8 @@ def main():
     arg("--output_model", type=str, default="./models/multi_task_unet.h5", help="Path to save the trained model.")
     
     args = parser.parse_args()
+    train_model(args)
 
-    # Load data
-    images, labels = load_data(args.input_folder, tuple(args.size))
-
-    # Split into training and validation sets
-    x_train, x_val, y_train, y_val = train_test_split(images, labels, test_size=0.2, random_state=42)
-
-    # Initialize the model
-    model = MultiTaskUNet(input_shape=(args.size[0], args.size[1], 3))
-
-    # Compile the model
-    model.compile(optimizer=Adam(learning_rate=args.learning_rate), 
-                  loss="binary_crossentropy", 
-                  metrics=["accuracy, precision, recall, AUC"])
-
-    # Set up checkpointing
-    checkpoint = ModelCheckpoint(args.output_model, monitor='val_loss', save_best_only=True, mode='min')
     
-    # early stopping
-    early_stopping = EarlyStopping(monitor='val_loss', patience=5)
-
-    # Train the model
-    model.fit(x_train, y_train,
-              validation_data=(x_val, y_val),
-              epochs=args.epochs,
-              batch_size=args.batch_size,
-              callbacks=[checkpoint, early_stopping])
-
 if __name__ == "__main__":
     main()
