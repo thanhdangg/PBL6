@@ -3,50 +3,109 @@ import numpy as np
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from datasets import SkinLesionDataset
 from image_preprocess import ImagePreprocessor
-from model import create_unet_model
-from loss import HybridLossDice
+from loss import HybridLoss, HybridLossDice
+from tqdm import tqdm  # For progress bar
+import torch.optim as optim
+from model import UNet
 
 
-def train_model(args):
-    # Initialize the image preprocessor
-    processor = ImagePreprocessor(args.input_folder, args.input_folder, target_size=tuple(args.size))
+
+def train_model(model, dataloader, criterion, optimizer, device, num_epochs=25):
+    """
+    Train the model for the given number of epochs.
     
-    # Create dataloader
-    dataset = processor.get_dataloader(batch_size=args.batch_size)
+    Arguments:
+    - model: the U-Net model
+    - dataloader: DataLoader for the training dataset
+    - criterion: loss function (HybridLoss or HybridLossDice)
+    - optimizer: optimizer (e.g., Adam, SGD)
+    - device: 'cuda' or 'cpu'
+    - num_epochs: number of epochs to train
     
-    # Initialize the model
-    model = create_unet_model(in_channels=3, out_channels=1, init_features=32).to('cuda')
-    
-    # Define the loss function and optimizer
-    criterion = HybridLossDice(weight_bce=1.0, weight_dice=1.0)
-    optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
-    
-    # Training loop
-    for epoch in range(args.epochs):
-        model.train()
+    Returns:
+    - model: trained model
+    - training_losses: list of average training losses per epoch
+    """
+    model = model.to(device)
+    training_losses = []
+
+    for epoch in range(num_epochs):
+        model.train()  # Set model to training mode
         running_loss = 0.0
-        for images, masks in dataset:
-            images = images.to('cuda')
-            masks = masks.to('cuda')
-            
-            optimizer.zero_grad()
+
+        # Progress bar
+        progress_bar = tqdm(dataloader, desc=f"Epoch {epoch+1}/{num_epochs}", unit="batch")
+
+        for images, masks in progress_bar:
+            images = images.to(device)
+            masks = masks.to(device)
+
+            # Forward pass
             outputs = model(images)
             loss = criterion(outputs, masks)
+
+            # Backward pass and optimize
+            optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            
-            running_loss += loss.item()
-        
-        print(f"Epoch {epoch+1}/{args.epochs}, Loss: {running_loss/len(dataset)}")
+
+            # Update running loss
+            running_loss += loss.item() * images.size(0)
+
+            # Update the progress bar description
+            progress_bar.set_postfix(loss=loss.item())
+
+        epoch_loss = running_loss / len(dataloader.dataset)
+        training_losses.append(epoch_loss)
+
+        print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss:.4f}")
     
-    # Save the trained model
-    torch.save(model.state_dict(), args.output_model)
+    return model, training_losses
+
+def evaluate_model(model, dataloader, criterion, device):
+    """
+    Evaluate the model on a validation or test dataset.
+    
+    Arguments:
+    - model: trained U-Net model
+    - dataloader: DataLoader for the validation or test dataset
+    - criterion: loss function (HybridLoss or HybridLossDice)
+    - device: 'cuda' or 'cpu'
+    
+    Returns:
+    - avg_loss: average loss on the validation set
+    """
+    model = model.to(device)
+    model.eval()  # Set model to evaluation mode
+    running_loss = 0.0
+
+    with torch.no_grad():  # Disable gradient computation
+        for images, masks in dataloader:
+            images = images.to(device)
+            masks = masks.to(device)
+
+            # Forward pass
+            outputs = model(images)
+            loss = criterion(outputs, masks)
+
+            # Update running loss
+            running_loss += loss.item() * images.size(0)
+
+    avg_loss = running_loss / len(dataloader.dataset)
+    print(f"Validation Loss: {avg_loss:.4f}")
+
+    return avg_loss
+
+
 def main():
     parser = argparse.ArgumentParser(description="Train a U-Net model for lesion attribute detection.")
     arg = parser.add_argument
 
-    arg("--input_folder", type=str, default="/kaggle/input/isic2018-challenge-task1-data-segmentation/ISIC2018_Task1-2_Training_Input", help="Path to the folder containing input images.")
+    arg("--input_folder", type=str, default="./data/ISIC2018_Task1-2_Training_Input", help="Path to the folder containing input images.")
+    arg("--output_dir", type=str,default ="./data/Input_Processed", help="Path to the output folder to save processed images.")
+    arg("--ground_truth_dir", type=str, default="./data/ISIC2018_Task1-2_Training_GroundTruth", help="Path to the ground truth masks directory.")   
     arg("--size", type=int, nargs=2, default=(256, 256), help="Size to resize the images to (width height).")
     arg("--epochs", type=int, default=50, help="Number of training epochs.")
     arg("--batch_size", type=int, default=16, help="Batch size for training.")
@@ -54,8 +113,29 @@ def main():
     arg("--output_model", type=str, default="./models/multi_task_unet.h5", help="Path to save the trained model.")
     
     args = parser.parse_args()
-    train_model(args)
-
+       
+    dataset = SkinLesionDataset(image_dir=args.input_folder, ground_truth_dir=args.ground_truth_dir, target_size=args.size)
     
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
+    
+    model = UNet()
+    criterion = HybridLoss()
+    optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"Training on device: {device}")
+
+    for epoch in range(args.epochs):
+        model.train()
+        running_loss = 0.0
+        for images, masks in dataloader:
+            optimizer.zero_grad()
+            outputs = model(images)
+            loss = criterion(outputs, masks)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
+
+        print(f"Epoch [{epoch+1}/{args.epochs}], Loss: {running_loss/len(dataloader)}")
+
 if __name__ == "__main__":
     main()
