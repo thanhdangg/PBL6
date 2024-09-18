@@ -1,93 +1,105 @@
-import tensorflow as tf
-from tensorflow.keras.models import Model # type: ignore
-from tensorflow.keras import layers, models # type: ignore
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
-class ConvBlock(tf.keras.layers.Layer):
-    def __init__(self, num_filters):
+class ConvBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
         super(ConvBlock, self).__init__()
-        self.conv1 = layers.Conv2D(num_filters, kernel_size=(3, 3), padding='same', activation='relu')
-        self.conv2 = layers.Conv2D(num_filters, kernel_size=(3, 3), padding='same', activation='relu')
-        
-    def call(self, inputs):
-        conv1 = self.conv1(inputs)
-        conv2 = self.conv2(conv1)
-        return conv2
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True)
+        )
+    
+    def forward(self, x):
+        return self.conv(x)
 
-class EncoderBlock(tf.keras.layers.Layer):
-    def __init__(self, num_filters):
+
+class EncoderBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
         super(EncoderBlock, self).__init__()
-        self.conv_block = ConvBlock(num_filters)
-        self.pool = layers.MaxPooling2D((2, 2))
-        
-    def call(self, inputs):
-        conv = self.conv_block(inputs)
-        pool = self.pool(conv)
-        return conv, pool
+        self.conv_block = ConvBlock(in_channels, out_channels)
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
+    
+    def forward(self, x):
+        conv_out = self.conv_block(x)
+        pool_out = self.pool(conv_out)
+        return conv_out, pool_out
 
-class Bottleneck(tf.keras.layers.Layer):
-    def __init__(self, num_filters):
+
+class Bottleneck(nn.Module):
+    def __init__(self, in_channels, out_channels):
         super(Bottleneck, self).__init__()
-        self.conv_block = ConvBlock(num_filters)
-        
-    def call(self, inputs):
-        return self.conv_block(inputs)
+        self.conv_block = ConvBlock(in_channels, out_channels)
+    
+    def forward(self, x):
+        return self.conv_block(x)
 
-class DecoderBlock(tf.keras.layers.Layer):
-    def __init__(self, num_filters):
+
+class DecoderBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
         super(DecoderBlock, self).__init__()
-        self.conv_transpose = layers.Conv2DTranspose(num_filters, kernel_size=(2, 2), strides=(2, 2), padding='same')
-        self.conv_block = ConvBlock(num_filters)
-        
-    def call(self, inputs, skip_features):
-        conv_transpose = self.conv_transpose(inputs)
-        concatenate = layers.concatenate([conv_transpose, skip_features])
-        conv = self.conv_block(concatenate)
-        return conv
+        self.upconv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2)
+        self.conv_block = ConvBlock(in_channels, out_channels)  # Concatenated output will have in_channels * 2
+    
+    def forward(self, x, enc_output):
+        x = self.upconv(x)
+        # Concatenate along the channel axis (dim=1)
+        x = torch.cat((x, enc_output), dim=1)
+        return self.conv_block(x)
 
-class MultiTaskUNet(tf.keras.Model):
-    def __init__(self, input_shape):
-        super(MultiTaskUNet, self).__init__()
-        
-        # Define input shape
-        self.inputs = layers.Input(shape=input_shape)
 
-        # Encoder blocks
-        self.enc1 = EncoderBlock(64)
-        self.enc2 = EncoderBlock(128)
-        self.enc3 = EncoderBlock(256)
-        self.enc4 = EncoderBlock(512)
-        
+class UNet(nn.Module):
+    def __init__(self, in_channels=3, out_channels=1, init_features=32):
+        super(UNet, self).__init__()
+
+        features = init_features
+        self.encoder1 = EncoderBlock(in_channels, features)
+        self.encoder2 = EncoderBlock(features, features * 2)
+        self.encoder3 = EncoderBlock(features * 2, features * 4)
+        self.encoder4 = EncoderBlock(features * 4, features * 8)
+
+        self.bottleneck = Bottleneck(features * 8, features * 16)
+
+        self.decoder4 = DecoderBlock(features * 16, features * 8)
+        self.decoder3 = DecoderBlock(features * 8, features * 4)
+        self.decoder2 = DecoderBlock(features * 4, features * 2)
+        self.decoder1 = DecoderBlock(features * 2, features)
+
+        self.final_conv = nn.Conv2d(in_channels=features, out_channels=out_channels, kernel_size=1)
+
+    def forward(self, x):
+        # Encoder path
+        enc1, pool1 = self.encoder1(x)
+        enc2, pool2 = self.encoder2(pool1)
+        enc3, pool3 = self.encoder3(pool2)
+        enc4, pool4 = self.encoder4(pool3)
+
         # Bottleneck
-        self.bottleneck = Bottleneck(1024)
-                
-        # Decoder blocks
-        self.dec1 = DecoderBlock(512)
-        self.dec2 = DecoderBlock(256)
-        self.dec3 = DecoderBlock(128)
-        self.dec4 = DecoderBlock(64)
-        
-        # output
-        self.outputs = layers.Conv2D(1, kernel_size=(1, 1), activation='sigmoid')
+        bottleneck = self.bottleneck(pool4)
 
-    def call(self, inputs):
-        # Encoder
-        s1, p1 = self.enc1(inputs)
-        s2, p2 = self.enc2(p1)
-        s3, p3 = self.enc3(p2)
-        s4, p4 = self.enc4(p3)
-        
-        # Bottleneck
-        b = self.bottleneck(p4)
-        
-        # Decoder
-        d1 = self.dec1(b, s4)
-        d2 = self.dec2(d1, s3)
-        d3 = self.dec3(d2, s2)
-        d4 = self.dec4(d3, s1)
-        
-        # Output
-        outputs = self.outputs(d4)
-            
-        model = Model(inputs=[inputs], outputs=[outputs])
+        # Decoder path
+        dec4 = self.decoder4(bottleneck, enc4)
+        dec3 = self.decoder3(dec4, enc3)
+        dec2 = self.decoder2(dec3, enc2)
+        dec1 = self.decoder1(dec2, enc1)
 
-        return model
+        return torch.sigmoid(self.final_conv(dec1))
+    
+def create_unet_model(in_channels=3, out_channels=1, init_features=32):
+    model = UNet(in_channels, out_channels, init_features)
+    return model
+
+
+if __name__ == "__main__":
+    # Create the U-Net model
+    model = UNet(in_channels=3, out_channels=1)
+
+    # Test with a random input tensor
+    input_image = torch.randn((1, 3, 256, 256))  # Example input (batch_size=1, channels=3, height=256, width=256)
+    output_mask = model(input_image)
+
+    print(f"Output shape: {output_mask.shape}")  # Expected output shape: [1, 1, 256, 256]
