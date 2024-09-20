@@ -37,14 +37,16 @@ def train_model(model, dataloader, criterion, optimizer, device, num_epochs=25):
 
         # Progress bar
         progress_bar = tqdm(dataloader, desc=f"Epoch {epoch+1}/{num_epochs}", unit="batch")
-
+        i = 0
         for images, masks in progress_bar:
             images = images.to(device)
             masks = masks.to(device)
-
+            i += 1
             # Forward pass
             outputs = model(images)
             loss = criterion(outputs, masks)
+            
+            print(f"\nBatch {i}, Loss: {loss.item():.4f}")
 
             # Backward pass and optimize
             optimizer.zero_grad()
@@ -64,41 +66,6 @@ def train_model(model, dataloader, criterion, optimizer, device, num_epochs=25):
     
     return model, training_losses
 
-def evaluate_model(model, dataloader, criterion, device):
-    """
-    Evaluate the model on a validation or test dataset.
-    
-    Arguments:
-    - model: trained U-Net model
-    - dataloader: DataLoader for the validation or test dataset
-    - criterion: loss function (HybridLoss or HybridLossDice)
-    - device: 'cuda' or 'cpu'
-    
-    Returns:
-    - avg_loss: average loss on the validation set
-    """
-    model = model.to(device)
-    model.eval()  # Set model to evaluation mode
-    running_loss = 0.0
-
-    with torch.no_grad():  # Disable gradient computation
-        for images, masks in dataloader:
-            images = images.to(device)
-            masks = masks.to(device)
-
-            # Forward pass
-            outputs = model(images)
-            loss = criterion(outputs, masks)
-
-            # Update running loss
-            running_loss += loss.item() * images.size(0)
-
-    avg_loss = running_loss / len(dataloader.dataset)
-    print(f"Validation Loss: {avg_loss:.4f}")
-
-    return avg_loss
-
-
 def main():
     parser = argparse.ArgumentParser(description="Train a U-Net model for lesion attribute detection.")
     arg = parser.add_argument
@@ -107,7 +74,7 @@ def main():
     arg("--output_dir", type=str,default ="./data/Input_Processed", help="Path to the output folder to save processed images.")
     arg("--ground_truth_dir", type=str, default="./data/ISIC2018_Task1-2_Training_GroundTruth", help="Path to the ground truth masks directory.")   
     arg("--size", type=int, nargs=2, default=(256, 256), help="Size to resize the images to (width height).")
-    arg("--epochs", type=int, default=50, help="Number of training epochs.")
+    arg("--epochs", type=int, default=5, help="Number of training epochs.")
     arg("--batch_size", type=int, default=16, help="Batch size for training.")
     arg("--learning_rate", type=float, default=0.001, help="Learning rate for training.")
     arg("--output_model", type=str, default="./models/multi_task_unet.h5", help="Path to save the trained model.")
@@ -115,30 +82,24 @@ def main():
     args = parser.parse_args()
        
     dataset = SkinLesionDataset(image_dir=args.input_folder, ground_truth_dir=args.ground_truth_dir, target_size=args.size)
-    
+    print('Loading dataset...', dataset)
+    print("Creating DataLoader...")
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
-    
+    print("Loading dataloader...", dataloader)
     model = UNet()
+    print("Creating Model...")
+    print("Model: ", model)
     criterion = HybridLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Training on device: {device}")
+    
+    model, training_losses = train_model(model, dataloader, criterion, optimizer, device, num_epochs=args.epochs)
+    print("Training complete! with loss: ",training_losses)
+    # Save the trained model
+    torch.save(model.state_dict(), args.output_model)
+    print(f"Model saved to {args.output_model}")
 
-    for epoch in range(args.epochs):
-        print(f"Epoch {epoch+1}/{args.epochs}:")
-        model.train()
-        running_loss = 0.0
-        for images, masks in dataloader:
-            optimizer.zero_grad()
-            outputs = model(images)
-            loss = criterion(outputs, masks)
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item()
-            print(f"Training on batch: {images.shape}, loss: {loss.shape}")
-
-
-        print(f"Epoch [{epoch+1}/{args.epochs}], Loss: {running_loss/len(dataloader)},running_loss: {running_loss}")
 
 if __name__ == "__main__":
     main()
