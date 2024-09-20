@@ -46,7 +46,7 @@ def train_model(model, dataloader, criterion, optimizer, device, num_epochs=25):
             outputs = model(images)
             loss = criterion(outputs, masks)
             
-            print(f"\nBatch {i}, Loss: {loss.item():.4f}")
+            # print(f"\nBatch {i}, Loss: {loss.item():.4f}")
 
             # Backward pass and optimize
             optimizer.zero_grad()
