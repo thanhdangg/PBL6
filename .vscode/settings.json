@@ -16,6 +16,9 @@
         "upconv",
         "randn",
         "optim",
-        "torchvision"
+        "torchvision",
+        "astype",
+        "tqdm",
+        "fromarray",
     ]
 }

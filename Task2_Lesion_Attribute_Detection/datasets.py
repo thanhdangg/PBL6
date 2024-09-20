@@ -49,11 +49,13 @@ class SkinLesionDataset(Dataset):
         masks = []
         for attribute in self.attributes:
             mask_filename = f"{image_id}_attribute_{attribute}.png"
+            # print("mask_filename: ",mask_filename)
             mask_path = os.path.join(self.ground_truth_dir, mask_filename)
             if os.path.exists(mask_path):
                 mask = Image.open(mask_path).convert('L')  # Load mask as grayscale
                 mask = mask.resize(self.target_size)       # Resize the mask
                 mask = transforms.ToTensor()(mask)         # Convert mask to tensor
+                # print("mask tensor: ",{mask.shape})   
                 masks.append(mask)
             else:
                 # If mask does not exist, create an empty mask
