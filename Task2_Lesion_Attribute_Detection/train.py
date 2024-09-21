@@ -132,7 +132,7 @@ def main():
     arg("--val_input_folder", type=str, default="./data/ISIC2018_Task1-2_Validation_Input", help="Path to the folder containing validation input images.")
     arg("--val_ground_truth_dir", type=str, default="./data/ISIC2018_Task1-2_Validation_GroundTruth", help="Path to the validation ground truth masks directory.")
     arg("--plot_output_dir", type=str, default="./plots", help="Directory to save the loss plot.")
-
+    arg("--resume_model", type=str, default=None, help="Path to a saved model to resume training.")
     
     args = parser.parse_args()
        
@@ -152,6 +152,15 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Training on device: {device}")
+    
+    # Load the saved model if resume_model is provided
+    if args.resume_model is not None:
+        if os.path.isfile(args.resume_model):
+            print(f"Loading model from {args.resume_model}")
+            model.load_state_dict(torch.load(args.resume_model))
+        else:
+            print(f"No model found at {args.resume_model}, starting training from scratch.")
+
     
     model, training_losses, validation_losses = train_model(model, train_loader,val_loader, criterion, optimizer, device, num_epochs=args.epochs, output_model_path=args.output_model)
     print("Training complete! with loss: ",training_losses)
