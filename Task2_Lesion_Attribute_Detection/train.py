@@ -112,7 +112,7 @@ def evaluate_model(model, dataloader, criterion, device):
             running_loss += loss.item() * images.size(0)
 
     avg_loss = running_loss / len(dataloader.dataset)
-    print(f"Validation Loss: {avg_loss:.4f}")
+    # print(f"Validation Loss: {avg_loss:.4f}")
 
     return avg_loss
 
