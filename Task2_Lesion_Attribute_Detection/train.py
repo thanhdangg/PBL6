@@ -66,6 +66,7 @@ def train_model(model, train_loader,val_loader, criterion, optimizer, device, nu
 
         print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss:.4f}")
         
+        print("Evaluating model on validation set...")
         # Validate the model
         val_loss = evaluate_model(model, val_loader, criterion, device)
         validation_losses.append(val_loss)
@@ -130,6 +131,7 @@ def main():
     arg("--output_model", type=str, default="./models/multi_task_unet.h5", help="Path to save the trained model.")
     arg("--val_input_folder", type=str, default="./data/ISIC2018_Task1-2_Validation_Input", help="Path to the folder containing validation input images.")
     arg("--val_ground_truth_dir", type=str, default="./data/ISIC2018_Task1-2_Validation_GroundTruth", help="Path to the validation ground truth masks directory.")
+    arg("--plot_output_dir", type=str, default="./plots", help="Directory to save the loss plot.")
 
     
     args = parser.parse_args()
@@ -154,6 +156,12 @@ def main():
     model, training_losses, validation_losses = train_model(model, train_loader,val_loader, criterion, optimizer, device, num_epochs=args.epochs, output_model_path=args.output_model)
     print("Training complete! with loss: ",training_losses)
     
+    # Ensure the plot output directory exists
+    if not os.path.exists(args.plot_output_dir):
+        os.makedirs(args.plot_output_dir)
+    
+    plot_path = os.path.join(args.plot_output_dir, 'loss_plot.png')
+
     # Plot the training and validation losses
     plt.figure()
     plt.plot(range(1, args.epochs + 1), training_losses, label='Training Loss')
@@ -162,8 +170,10 @@ def main():
     plt.ylabel('Loss')
     plt.legend()
     plt.title('Training and Validation Loss Over Epochs')
-    plt.savefig('loss_plot.png')
+    plt.savefig(plot_path)
     plt.show()
+    print(f"Loss plot saved to {plot_path}")
+
     
 if __name__ == "__main__":
     main()
