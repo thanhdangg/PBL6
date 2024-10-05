@@ -1,0 +1,14 @@
+imageio
+tensorflow==2.16.1
+numpy
+pandas
+matplotlib
+Pillow
+albumentations
+tqdm
+keras==3.3.3
+# django
+# djangorestframework
+python-dotenv
+flask
+opencv-python
