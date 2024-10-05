@@ -1,3 +1,9 @@
-
+#Dang 
 /data
 /models
+
+#Trong
+.venv
+.vscode
+/Task1_Segmentation_Skin_Cancer/app/static
+/Task1_Segmentation_Skin_Cancer/app/model
