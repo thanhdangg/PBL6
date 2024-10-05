@@ -7,7 +7,7 @@ from tensorflow.keras import Model
 
 
 class SoftAttention(Layer):
-    def __init__(self,ch,m,concat_with_x=False,aggregate=False,**kwargs):
+    def __init__(self,ch=2048,m=16,concat_with_x=False,aggregate=False,**kwargs):
         self.channels=int(ch)
         self.multiheads = m
         self.aggregate_channels = aggregate
