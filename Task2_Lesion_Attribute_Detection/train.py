@@ -12,6 +12,56 @@ from tqdm import tqdm  # For progress bar
 import torch.optim as optim
 from model import UNet
 
+def iou_score(pred, target, threshold=0.5, smooth=1e-6):
+    """
+    Compute the Intersection over Union (IoU) score for binary masks.
+    Args:
+        pred (torch.Tensor): The predicted mask of shape [batch, 1, H, W].
+        target (torch.Tensor): The ground truth mask of shape [batch, 1, H, W].
+        threshold (float): Threshold to binarize predicted masks.
+        smooth (float): Small value to avoid division by zero.
+    
+    Returns:
+        iou (float): IoU score.
+    """
+    pred = torch.sigmoid(pred)
+    pred = (pred > threshold).float()  # Binarize the prediction
+
+    # Flatten tensors
+    pred = pred.view(-1)
+    target = target.view(-1)
+
+    intersection = (pred * target).sum()
+    union = pred.sum() + target.sum() - intersection
+
+    iou = (intersection + smooth) / (union + smooth)
+    return iou.item()
+
+def dice_score(pred, target, threshold=0.5, smooth=1e-6):
+    """
+    Compute the Dice score for binary masks.
+    Args:
+        pred (torch.Tensor): The predicted mask of shape [batch, 1, H, W].
+        target (torch.Tensor): The ground truth mask of shape [batch, 1, H, W].
+        threshold (float): Threshold to binarize predicted masks.
+        smooth (float): Small value to avoid division by zero.
+    
+    Returns:
+        dice (float): Dice score.
+    """
+    pred = torch.sigmoid(pred)
+    pred = (pred > threshold).float()
+
+    # Flatten tensors
+    pred = pred.view(-1)
+    target = target.view(-1)
+
+    intersection = (pred * target).sum()
+
+    dice = (2. * intersection + smooth) / (pred.sum() + target.sum() + smooth)
+    return dice.item()
+
+
 def is_blank_mask(pred_mask, threshold=0.5):
     """
     Check if mask is blank (all pixels are 0).
@@ -48,11 +98,16 @@ def train_model(model, train_loader,val_loader, criterion, optimizer, device, nu
     model = model.to(device)
     training_losses = []
     validation_losses = []
+    
+    training_iou = []
+    vaidation_iou = []
     best_val_loss = float('inf')
 
     for epoch in range(num_epochs):
         model.train()  # Set model to training mode
         running_loss = 0.0
+        running_iou = 0.0
+
 
         # Progress bar
         progress_bar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{num_epochs}", unit="batch")
@@ -85,20 +140,31 @@ def train_model(model, train_loader,val_loader, criterion, optimizer, device, nu
              
                 # Update running loss
                 running_loss += loss.item() * images.size(0)
+                
+                # Compute IoU for training batch
+                batch_iou = 0.0
+                for i in range(outputs.size(0)):
+                    batch_iou += iou_score(outputs[i], masks[i])
+                
+                running_iou += batch_iou / outputs.size(0)
+
 
             # Update the progress bar description
             progress_bar.set_postfix(loss=loss.item())
 
         epoch_loss = running_loss / len(train_loader.dataset)
-        training_losses.append(epoch_loss)
+        epoch_iou = running_iou / len(train_loader)
 
-        print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss:.4f}")
+        training_losses.append(epoch_loss)
+        training_iou.append(epoch_iou)
+
+        print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss:.4f}, iou: {epoch_iou:.4f}")
         
         print("Evaluating model on validation set...")
         # Validate the model
-        val_loss = evaluate_model(model, val_loader, criterion, device)
+        val_loss, val_iou = evaluate_model(model, val_loader, criterion, device)
         validation_losses.append(val_loss)
-        print(f"Validation Loss: {val_loss:.4f}")
+        print(f"Validation Loss: {val_loss:.4f}, Validation iou: {val_iou:.4f}")
         
         # Save the best model
         if val_loss < best_val_loss:
@@ -127,6 +193,7 @@ def evaluate_model(model, dataloader, criterion, device):
     model = model.to(device)
     model.eval()  # Set model to evaluation mode
     running_loss = 0.0
+    running_iou = 0.0
 
     with torch.no_grad():  # Disable gradient computation
         for images, masks in dataloader:
@@ -150,11 +217,18 @@ def evaluate_model(model, dataloader, criterion, device):
                 # Compute loss
                 loss = criterion(valid_outputs, valid_masks)
                 running_loss += loss.item()
+                
+                # Compute IoU for validation batch
+                batch_iou = 0.0
+                for i in range(outputs.size(0)):
+                    batch_iou += iou_score(outputs[i], masks[i])
+                running_iou += batch_iou / outputs.size(0)
 
     avg_loss = running_loss / len(dataloader.dataset)
+    avg_iou = running_iou / len(dataloader)
     # print(f"Validation Loss: {avg_loss:.4f}")
 
-    return avg_loss
+    return avg_loss, avg_iou
 
 def main():
     parser = argparse.ArgumentParser(description="Train a U-Net model for lesion attribute detection.")
