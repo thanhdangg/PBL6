@@ -1,9 +1,13 @@
 {
     "cSpell.words": [
         "astype",
+        "BCDU",
+        "biconv",
+        "biconvlstm",
         "cmap",
         "coeff",
         "crossentropy",
+        "downsampling",
         "figsize",
         "fromarray",
         "imread",
@@ -20,11 +24,13 @@
         "tensorflow",
         "tensorflow.js",
         "tensorflowjs",
+        "timestep",
         "torchvision",
         "tqdm",
         "unet",
         "unsqueeze",
         "upconv",
+        "Upsampling",
         "xlabel",
         "ylabel"
     ]

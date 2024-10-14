@@ -45,7 +45,37 @@ class TestSkinLesionDataset(Dataset):
         masks = torch.cat(masks, dim=0)  # Concatenate masks along the channel dimension
 
         return image, masks, image_filename
+    
+def is_blank_image(image):
+    return np.all(image == image[0, 0])
 
+def is_blank_mask(pred_mask, threshold=0.5):
+    """
+    Check if the predicted mask is blank.
+    A mask is considered blank if all values are below the threshold.
+    """
+    return torch.all(pred_mask < threshold)
+
+
+# Function to save the mask, handling blank masks
+def save_mask(pred_mask, output_path, threshold=0.5):
+    """
+    Save the mask as a PNG image.
+    If the prediction is a blank mask, output a black image.
+    """
+    if is_blank_mask(pred_mask, threshold):
+        # Create a black image if it is a blank mask
+        blank_image = Image.new("L", pred_mask.shape[-2:])  # "L" mode for grayscale image
+        blank_image.save(output_path)
+        print(f"Blank mask saved as {output_path}")
+    else:
+        # Convert tensor to image and save
+        pred_mask_np = pred_mask.cpu().detach().numpy()
+        binary_mask = (pred_mask_np > threshold).astype(np.uint8) * 255  # Convert to 0 or 255
+        mask_image = Image.fromarray(binary_mask.squeeze(), mode="L")
+        mask_image.save(output_path)
+        print(f"Mask saved as {output_path}")
+        
 def evaluate_model(model, dataloader, device, output_dir):
     model = model.to(device)
     model.eval()  # Set model to evaluation mode
@@ -72,10 +102,14 @@ def evaluate_model(model, dataloader, device, output_dir):
             # Save predicted masks
             for i in range(outputs.size(0)):
                 for j, attribute in enumerate(attributes):
-                    pred_mask = outputs[i, j].cpu().numpy().squeeze()
-                    pred_mask = (pred_mask > 0.5).astype(np.uint8) * 255  # Convert to binary mask
-                    pred_image = Image.fromarray(pred_mask)
-                    pred_image.save(os.path.join(output_dir, f"{filenames[i]}_{attribute}.png"))
+                    # pred_mask = outputs[i, j].cpu().numpy().squeeze()
+                    # pred_mask = (pred_mask > 0.5).astype(np.uint8) * 255  # Convert to binary mask
+                    # pred_image = Image.fromarray(pred_mask)
+                    # pred_image.save(os.path.join(output_dir, f"{filenames[i]}_{attribute}.png"))
+                    
+                    pred_mask = outputs[i, j]
+                    output_path = os.path.join(output_dir, f"{filenames[i]}_{attribute}.png")
+                    save_mask(pred_mask, output_path)  
 
     avg_loss = running_loss / len(dataloader.dataset)
     print(f"Test Loss: {avg_loss:.4f}")

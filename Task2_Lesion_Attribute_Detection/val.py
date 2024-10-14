@@ -1,9 +1,27 @@
 import argparse
+import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from datasets import SkinLesionDataset
 from loss import HybridLoss, HybridLossDice
 from model import UNet
+
+
+def is_blank_mask(pred_mask, threshold=0.5):
+    """
+    Check if mask is blank (all pixels are 0).
+    pred_mask: model prediction tensor 
+    threshold: threshold to classify pixels as 0 or 1
+    """
+    # Convert tensor to numpy array
+    pred_mask_np = pred_mask.cpu().detach().numpy()
+    
+    # Convert  to binary mask  (0 or 1)
+    binary_mask = (pred_mask_np > threshold).astype(np.uint8)
+    
+    # Check if all is 0
+    return np.all(binary_mask == 0)
+
 
 def evaluate_model(model, dataloader, criterion, device):
     """
@@ -29,10 +47,20 @@ def evaluate_model(model, dataloader, criterion, device):
 
             # Forward pass
             outputs = model(images)
-            loss = criterion(outputs, masks)
-
-            # Update running loss
-            running_loss += loss.item() * images.size(0)
+            valid_masks = []
+            valid_outputs = []
+            for i, mask in enumerate(masks):
+                if not is_blank_mask(mask):  # Check if mask is not blank
+                    valid_masks.append(mask)
+                    valid_outputs.append(outputs[i])
+            
+            if len(valid_masks) > 0:
+                valid_masks = torch.stack(valid_masks)
+                valid_outputs = torch.stack(valid_outputs)
+                
+                # Compute loss
+                loss = criterion(valid_outputs, valid_masks)
+                running_loss += loss.item()
 
     avg_loss = running_loss / len(dataloader.dataset)
     print(f"Validation Loss: {avg_loss:.4f}")
