@@ -173,7 +173,7 @@ def train_model(model, train_loader,val_loader, criterion, optimizer, device, nu
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
             
-        output_checkpoint_dir = os.path.dirname(args.output_model_checkpoint_drive)
+        output_checkpoint_dir = os.path.dirname(output_checkpoint_dir)
         if not os.path.exists(output_checkpoint_dir):
             os.makedirs(output_checkpoint_dir)
         # Save the best model
