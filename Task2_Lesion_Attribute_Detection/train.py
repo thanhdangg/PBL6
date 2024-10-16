@@ -77,7 +77,7 @@ def is_blank_mask(pred_mask, threshold=0.5):
     # Check if all is 0
     return np.all(binary_mask == 0)
 
-def train_model(model, train_loader,val_loader, criterion, optimizer, device, num_epochs=25, output_model_path="./models/multi_task_unet.h5"):
+def train_model(model, train_loader,val_loader, criterion, optimizer, device, num_epochs=25, output_model_path="./models/multi_task_unet.h5", output_checkpoint_dir= "/content/drive/MyDrive/best_model.h5"):
     """
     Train the model for the given number of epochs.
     
@@ -90,6 +90,7 @@ def train_model(model, train_loader,val_loader, criterion, optimizer, device, nu
     - device: 'cuda' or 'cpu'
     - num_epochs: number of epochs to train
     - output_model_path: path to save the trained model
+    - output_checkpoint_dir: path to save the checkpoint model
 
     Returns:
     - model: trained model
@@ -125,9 +126,11 @@ def train_model(model, train_loader,val_loader, criterion, optimizer, device, nu
             valid_outputs = []
             
             for i, mask in enumerate(masks):
-                if not is_blank_mask(mask):  # Check if mask is not blank
-                    valid_masks.append(mask)
-                    valid_outputs.append(outputs[i])
+                mask_filename = train_loader.dataset.image_filenames[i]
+                if "blank" in mask_filename: 
+                    continue
+                valid_masks.append(mask)
+                valid_outputs.append(outputs[i])
             
             if len(valid_masks) > 0:
                 valid_masks = torch.stack(valid_masks)
@@ -166,13 +169,19 @@ def train_model(model, train_loader,val_loader, criterion, optimizer, device, nu
         validation_losses.append(val_loss)
         print(f"Validation Loss: {val_loss:.4f}, Validation iou: {val_iou:.4f}")
         
+        output_dir = os.path.dirname(output_model_path)
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+            
+        output_checkpoint_dir = os.path.dirname(args.output_model_checkpoint_drive)
+        if not os.path.exists(output_checkpoint_dir):
+            os.makedirs(output_checkpoint_dir)
         # Save the best model
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            output_dir = os.path.dirname(output_model_path)
-            if not os.path.exists(output_dir):
-                os.makedirs(output_dir)
             torch.save(model.state_dict(), output_model_path)
+            torch.save(model.state_dict(), output_checkpoint_dir)
+            
             print(f"Best model saved to {output_model_path}")
     
     return model, training_losses, validation_losses
@@ -230,22 +239,29 @@ def evaluate_model(model, dataloader, criterion, device):
 
     return avg_loss, avg_iou
 
-def main():
+def main():    
     parser = argparse.ArgumentParser(description="Train a U-Net model for lesion attribute detection.")
     arg = parser.add_argument
 
-    arg("--input_folder", type=str, default="./data/ISIC2018_Task1-2_Training_Input", help="Path to the folder containing input images.")
-    arg("--output_dir", type=str,default ="./data/Input_Processed", help="Path to the output folder to save processed images.")
-    arg("--ground_truth_dir", type=str, default="./data/ISIC2018_Task1-2_Training_GroundTruth", help="Path to the ground truth masks directory.")   
-    arg("--size", type=int, nargs=2, default=(256, 256), help="Size to resize the images to (width height).")
-    arg("--epochs", type=int, default=5, help="Number of training epochs.")
-    arg("--batch_size", type=int, default=16, help="Batch size for training.")
-    arg("--learning_rate", type=float, default=0.001, help="Learning rate for training.")
+    # train datasets
+    arg("--input_folder", type=str, default="./data/Processed_Train_Input", help="Path to the folder containing input images.")
+    arg("--ground_truth_dir", type=str, default="./data/Processed_Train_GroundTruth", help="Path to the ground truth masks directory.")   
+    
+    # validation datasets
+    arg("--val_input_folder", type=str, default="./data/Processed_Val_Input", help="Path to the folder containing validation input images.")
+    arg("--val_ground_truth_dir", type=str, default="./data/Processed_Val_GroundTruth", help="Path to the validation ground truth masks directory.")
+
+    # output train
     arg("--output_model", type=str, default="./models/multi_task_unet.h5", help="Path to save the trained model.")
-    arg("--val_input_folder", type=str, default="./data/ISIC2018_Task1-2_Validation_Input", help="Path to the folder containing validation input images.")
-    arg("--val_ground_truth_dir", type=str, default="./data/ISIC2018_Task1-2_Validation_GroundTruth", help="Path to the validation ground truth masks directory.")
+    arg("--output_model_checkpoint_drive", type=str, default="/content/drive/MyDrive/best_model.h5", help="Path to save checkpoint the trained model.")
     arg("--plot_output_dir", type=str, default="./plots", help="Directory to save the loss plot.")
     arg("--resume_model", type=str, default=None, help="Path to a saved model to resume training.")
+
+    # hyperparameter
+    arg("--size", type=int, nargs=2, default=(256, 256), help="Size to resize the images to (width height).")
+    arg("--epochs", type=int, default=2, help="Number of training epochs.")
+    arg("--batch_size", type=int, default=16, help="Batch size for training.")
+    arg("--learning_rate", type=float, default=0.001, help="Learning rate for training.")
     
     args = parser.parse_args()
        
@@ -275,7 +291,7 @@ def main():
             print(f"No model found at {args.resume_model}, starting training from scratch.")
 
     
-    model, training_losses, validation_losses = train_model(model, train_loader,val_loader, criterion, optimizer, device, num_epochs=args.epochs, output_model_path=args.output_model)
+    model, training_losses, validation_losses = train_model(model, train_loader,val_loader, criterion, optimizer, device, num_epochs=args.epochs, output_model_path=args.output_model, output_checkpoint_dir = args.output_checkpoint_dir)
     print("Training complete! with loss: ",training_losses)
     
     # Ensure the plot output directory exists

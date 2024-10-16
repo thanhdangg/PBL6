@@ -7,10 +7,11 @@ import torch
 import torchvision.transforms as transforms
 
 class ImagePreprocessor:
-    def __init__(self, input_dir, output_dir, ground_truth_dir, target_size=(256, 256)):
+    def __init__(self, input_dir, output_dir, ground_truth_dir, output_mask_dir, target_size=(256, 256)):
         self.input_dir = input_dir
         self.output_dir = output_dir
         self.ground_truth_dir = ground_truth_dir
+        self.output_mask_dir = output_mask_dir
         self.target_size = target_size
 
         # Define transformations for input images
@@ -72,10 +73,18 @@ class ImagePreprocessor:
 
         # Save image
         image.save(output_path)
+        
+    def is_blank_image(self, mask):
+        """
+        Check if the mask is blank (all pixels are 0).
+        """
+        # Convert mask to numpy array
+        mask_np = np.array(mask)
+        return np.all(mask_np == 0)
 
     def process_and_save(self, image_filename, augment=False):
         """
-        Process an image file and its corresponding masks, save the processed image, and optionally save augmented versions.
+        Process an image file and its corresponding masks, save the processed image, and mark blank masks.
         """
         # Extract the image ID (e.g., ISIC_<image_id>) from the filename
         image_id = image_filename.split('.')[0]  # Assuming filenames are like 'ISIC_<image_id>.jpg'
@@ -95,7 +104,12 @@ class ImagePreprocessor:
             mask_path = os.path.join(self.ground_truth_dir, mask_filename)
             if os.path.exists(mask_path):
                 mask = self.process_image(mask_path, is_mask=True)
-                mask_output_path = os.path.join(self.output_dir, f"{image_id}_attribute_{attribute}.png")
+                
+                # Check if the mask is blank
+                if self.is_blank_image(mask):
+                    mask_filename = f"{image_id}_attribute_{attribute}_blank.png"  # Append '_blank' to the filename
+                
+                mask_output_path = os.path.join(self.output_mask_dir, mask_filename)
                 self.save_image(mask, mask_output_path)
             else:
                 print(f"Mask not found for {image_filename} with attribute {attribute}.")
@@ -113,6 +127,9 @@ class ImagePreprocessor:
         """
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
+        
+        if not os.path.exists(self.output_mask_dir):
+            os.makedirs(self.output_mask_dir)
 
         for image_filename in os.listdir(self.input_dir):
             if image_filename.endswith('.jpg'):  # Process only JPEG images
@@ -125,17 +142,30 @@ def main():
     arg = parser.add_argument
 
     arg("--input_dir", type=str,default ="./data/ISIC2018_Task1-2_Training_Input", help="Path to the input folder containing images.")
-    arg("--output_dir", type=str,default ="./data/Input_Processed", help="Path to the output folder to save processed images.")
+    arg("--output_dir", type=str,default ="./data/Processed_Train_Input", help="Path to the output folder to save processed images.")
     arg("--ground_truth_dir", type=str, default="./data/ISIC2018_Task1-2_Training_GroundTruth", help="Path to the ground truth masks directory.")
+    arg("--output_mask_dir", type=str, default="./data/Processed_Train_GroundTruth", help="Path to the output folder to save processed masks.")
+    
+    arg("--input_val_dir", type=str, default="./data/ISIC2018_Task1-2_Validation_Input", help="Path to the validation folder containing images.")
+    arg("--ground_truth_val_dir", type=str, default="./data/ISIC2018_Task1-2_Validation_GroundTruth", help="Path to the ground truth masks for validation directory")
+    arg("--output_val_dir", type=str, default="./data/Processed_Val_Input", help="Processed Val Input")
+    arg("--output_mask_val_dir", type=str, default="./data/Processed_Val_GroundTruth", help="Processed Val GroundTruth")
+    
     arg("--size", type=int, nargs=2, default=(256, 256), help="Size to resize the images to (width height).")
     arg('--augment', action='store_true', help='If set, apply data augmentation')
 
     args = parser.parse_args()
-    
-    processor = ImagePreprocessor(args.input_dir, args.output_dir, args.ground_truth_dir, target_size=tuple(args.size))
-    
+        
     # Process all images with optional augmentation
+
+    print("Processing for train")
+    processor = ImagePreprocessor(args.input_dir, args.output_dir, args.ground_truth_dir, args.output_mask_dir, target_size=tuple(args.size))
     processor.process_all_images(augment=args.augment)
+    
+    print("Processing for validation")
+
+    processorVal = ImagePreprocessor(args.input_val_dir, args.output_val_dir, args.ground_truth_val_dir, args.output_mask_val_dir, target_size=tuple(args.size))
+    processorVal.process_all_images(augment=args.augment)
 
 if __name__ == "__main__":
     main()
