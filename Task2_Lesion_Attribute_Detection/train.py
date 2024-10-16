@@ -77,7 +77,7 @@ def is_blank_mask(pred_mask, threshold=0.5):
     # Check if all is 0
     return np.all(binary_mask == 0)
 
-def train_model(model, train_loader,val_loader, criterion, optimizer, device, num_epochs=25, output_model_path="./models/multi_task_unet.h5", output_checkpoint_dir= "/content/drive/MyDrive/best_model.h5"):
+def train_model(model, train_loader,val_loader, criterion, optimizer, device, num_epochs=25, output_model_path="./models/multi_task_unet.h5", output_model_keras_path = './models/multi_task_unet.keras'):
     """
     Train the model for the given number of epochs.
     
@@ -90,7 +90,6 @@ def train_model(model, train_loader,val_loader, criterion, optimizer, device, nu
     - device: 'cuda' or 'cpu'
     - num_epochs: number of epochs to train
     - output_model_path: path to save the trained model
-    - output_checkpoint_dir: path to save the checkpoint model
 
     Returns:
     - model: trained model
@@ -173,16 +172,17 @@ def train_model(model, train_loader,val_loader, criterion, optimizer, device, nu
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
             
-        output_checkpoint_dir = os.path.dirname(output_checkpoint_dir)
-        if not os.path.exists(output_checkpoint_dir):
-            os.makedirs(output_checkpoint_dir)
+        output_keras_dir = os.path.dirname(output_model_keras_path)
+        if not os.path.exists(output_keras_dir):
+            os.makedirs(output_keras_dir)
+            
         # Save the best model
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             torch.save(model.state_dict(), output_model_path)
-            torch.save(model.state_dict(), output_checkpoint_dir)
-            
-            print(f"Best model saved to {output_model_path}")
+            torch.save(model.state_dict(), output_model_keras_path)
+
+            print(f"Best model saved to {output_model_path}, {output_model_keras_path}")
     
     return model, training_losses, validation_losses
 
@@ -252,8 +252,8 @@ def main():
     arg("--val_ground_truth_dir", type=str, default="./data/Processed_Val_GroundTruth", help="Path to the validation ground truth masks directory.")
 
     # output train
-    arg("--output_model", type=str, default="./models/multi_task_unet.h5", help="Path to save the trained model.")
-    arg("--output_model_checkpoint_drive", type=str, default="/content/drive/MyDrive/best_model.h5", help="Path to save checkpoint the trained model.")
+    arg("--output_model_h5", type=str, default="./models/multi_task_unet.h5", help="Path to save the trained model.")
+    arg("--output_model_keras", type=str, default="./models/multi_task_unet.keras", help="Path to save the trained model.")
     arg("--plot_output_dir", type=str, default="./plots", help="Directory to save the loss plot.")
     arg("--resume_model", type=str, default=None, help="Path to a saved model to resume training.")
 
@@ -291,7 +291,7 @@ def main():
             print(f"No model found at {args.resume_model}, starting training from scratch.")
 
     
-    model, training_losses, validation_losses = train_model(model, train_loader,val_loader, criterion, optimizer, device, num_epochs=args.epochs, output_model_path=args.output_model, output_checkpoint_dir = args.output_checkpoint_dir)
+    model, training_losses, validation_losses = train_model(model, train_loader,val_loader, criterion, optimizer, device, num_epochs=args.epochs, output_model_path=args.output_model_h5, output_model_keras_path=args.output_model_keras)
     print("Training complete! with loss: ",training_losses)
     
     # Ensure the plot output directory exists
