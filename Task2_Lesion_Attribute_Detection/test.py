@@ -137,7 +137,7 @@ def main():
     print("Loading dataloader...", dataloader)
     
     model = UNet()
-    model.load_state_dict(torch.load(args.model_path),  weights_only=True)
+    model.load_state_dict(torch.load(args.model_path))
     print("Model loaded from", args.model_path)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

@@ -1,62 +1,75 @@
 import streamlit as st
 import torch
+from torchvision import transforms
 from PIL import Image
 import numpy as np
-import io
-from model import UNet  # Make sure to import your UNet model definition
-from torchvision import transforms
-import matplotlib.pyplot as plt
+from model import UNet
 
-# Load the model
-model_path = "models/multi_task_unet.h5"
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = UNet()
-model.load_state_dict(torch.load(model_path, map_location=device))
-model.to(device)
-model.eval()
+# Define attributes for lesion detection
+attributes = ["pigment_network", "negative_network", "streaks", "milia_like_cyst", "globules"]
 
-# Define the image transformation
+# Define image transformations (resize, to tensor, etc.)
 transform = transforms.Compose([
     transforms.Resize((256, 256)),
-    transforms.ToTensor(),
+    transforms.ToTensor()
 ])
 
-# Define the Streamlit app
-st.title("Lesion Attribute Detection")
+# Function to load and preprocess image
+def preprocess_image(image):
+    image = image.convert("RGB")  # Ensure 3 channels (RGB)
+    image = transform(image)  # Resize and convert to tensor
+    return image.unsqueeze(0)  # Add batch dimension
 
-uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+# Function to post-process and return mask image
+def postprocess_mask(pred_mask):
+    pred_mask_np = pred_mask.cpu().detach().numpy()
+    binary_mask = (pred_mask_np > 0.5).astype(np.uint8) * 255  # Convert to binary mask
+    mask_image = Image.fromarray(binary_mask.squeeze(), mode="L")
+    return mask_image
+
+# Function to make predictions
+def predict_attributes(model, image_tensor, device):
+    model = model.to(device)
+    model.eval()  # Set model to evaluation mode
+    
+    with torch.no_grad():
+        image_tensor = image_tensor.to(device)
+        outputs = model(image_tensor)
+        
+        # Return each predicted mask for the attributes
+        return outputs
+
+# Streamlit interface
+st.title("Lesion Attribute Detection")
+st.write("Upload an image to detect skin lesion attributes.")
+
+# Upload image
+uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "png"])
 
 if uploaded_file is not None:
-    # Read the image
-    image = Image.open(uploaded_file).convert("RGB")
-    st.image(image, caption='Uploaded Image', use_column_width=True)
-    st.write("")
-    st.write("Classifying...")
+    # Display uploaded image
+    image = Image.open(uploaded_file)
+    st.image(image, caption="Uploaded Image", use_column_width=True)
 
-    # Preprocess the image
-    input_image = transform(image).unsqueeze(0).to(device)
+    # Load model
+    model = UNet()  # Initialize the UNet model
+    model_path = "./models/multi_task_unet.keras"  # Path to your trained model
+    model.load_state_dict(torch.load(model_path))
+    
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    # Run the model
-    with torch.no_grad():
-        outputs = model(input_image)
+    # Preprocess the uploaded image
+    image_tensor = preprocess_image(image)
 
-    # Process the outputs
-    attributes = ["pigment_network", "negative_network", "streaks", "milia_like_cyst", "globules"]
-    output_images = outputs.squeeze().cpu().numpy()  # Shape: (5, 256, 256)
+    # Run the model and get predicted masks for the attributes
+    st.write("Predicting lesion attributes...")
+    predicted_masks = predict_attributes(model, image_tensor, device)
 
-    # Apply threshold to create binary masks
-    binary_images = (output_images > 0.5).astype(np.uint8)  # Threshold at 0.5
+    # Create 5 columns to display the images in a row
+    cols = st.columns(5)
 
-    # Display the results
-    st.write("Results:")
-    fig, axes = plt.subplots(1, 6, figsize=(20, 10))
-    axes[0].imshow(image)
-    axes[0].set_title("Original Image")
-    for i in range(5):
-        axes[i+1].imshow(binary_images[i], cmap='gray')
-        axes[i+1].set_title(attributes[i])
-    st.pyplot(fig)
-
-# Run the Streamlit app
-if __name__ == "__main__":
-    st.write("Streamlit app is running...")
+    # Display each mask in a separate column
+    for i, attribute in enumerate(attributes):
+        with cols[i]:
+            mask_image = postprocess_mask(predicted_masks[0, i])
+            st.image(mask_image, caption=attribute, use_column_width=True)
