@@ -4,14 +4,10 @@ import requests
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from models.model import create_model, load_model_weights
-from models.segmentmodel import predict  # Giả sử hàm này là hàm dự đoán từ mô hình phân đoạn
+from models.segmentmodel import predict 
+from tensorflow.keras.models import load_model
 
-# Tải mô hình phân loại
-classification_model = create_model(input_shape=(224, 224, 3))
-classification_model = load_model_weights(classification_model, '/mnt/01D9E8A400C52160/Ki7/pbl6/Skin-cancer-Analyzer/models/best_model.h5')
-
-# Định nghĩa các lớp cho mô hình phân loại
+model = load_model('/mnt/01D9E8A400C52160/Ki7/pbl6/Skin-cancer-Analyzer/models/skin-cancer-mnist-ham10000.keras')
 classes = {
     4: ('nv', 'melanocytic nevi'), 
     6: ('mel', 'melanoma'), 
@@ -24,17 +20,14 @@ classes = {
 
 app = FastAPI()
 
-# Hàm dự đoán cho mô hình phân loại
 def predict_image(image):
-    img = cv2.resize(image, (224, 224))
-    img = np.array(img) / 255.0
-    img = np.expand_dims(img, axis=0)
+    img_resized = cv2.resize(image, (28, 28))
+    result = model.predict(img_resized.reshape(1, 28, 28, 3))
+    max_prob = max(result[0])
+    class_ind = list(result[0]).index(max_prob)
+    class_name = classes[class_ind][1] 
+    return  class_name,result
 
-    pred = classification_model.predict(img)
-    class_idx = np.argmax(pred, axis=1)[0]
-    return classes[class_idx], pred
-
-# Hàm tải hình ảnh và thực hiện dự đoán
 def load_image_and_predict(url):
     response = requests.get(url)
     if response.status_code != 200:
@@ -46,15 +39,11 @@ def load_image_and_predict(url):
     # Dự đoán lớp
     label, pred = predict_image(image) 
 
-    # Resize ảnh về kích thước 256x256 cho mô hình phân đoạn
-    image_segment = cv2.resize(image, (256, 256))
-
-    # Dự đoán phân đoạn
-    segment_result = predict(url, "test.jpg")  # Giả sử hàm predict là hàm dự đoán phân đoạn
+    
+    segment_result = predict(url, "test.jpg") 
 
     return JSONResponse(content={
-        "predicted_class": label[1],
-        "label": label[0],
+        "label": label,
         "prediction_probabilities": pred.flatten().tolist(),
         "segment_result": segment_result
     })
