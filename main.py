@@ -3,12 +3,11 @@ import cv2
 import requests
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 from sqlmodel import SQLModel
 
 from models.segment_model import predict
 from models.classify_model import predict_image
-from infra.Database.database import engine, SessionLocal, get_db
+from infra.Database.database import engine, get_db
 from infra.Database import crud, schema, login_services
 from models.segment_model import getting_segmet_model
 from models.classify_model import getting_classify_model
@@ -77,16 +76,16 @@ async def login(request: Request):
     if not username or not password:
         return JSONResponse(content={"error": "Username or password is missing"}, status_code=400)
     user = login_services.authenticate_user(next(get_db()), username, password)
+    userid = user.id
     if not user:
         return JSONResponse(content={"error": "Invalid credentials"}, status_code=401)
-    return JSONResponse(content={"message": "Login successful"})
+    return JSONResponse(content={"userid": userid},status_code=200)
 @app.get("/history/")
 async def get_history(request: Request):
     userid = request.query_params.get("userid")
     if not userid:
         return JSONResponse(content={"error": "User id is missing"}, status_code=400)
     predictions = crud.get_predictions(next(get_db()), user_id=int(userid))
-    print(predictions)
     return JSONResponse(content={"predictions": [prediction.dict() for prediction in predictions]})
 if __name__ == "__main__":
     import uvicorn
