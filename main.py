@@ -1,7 +1,6 @@
 import numpy as np
 import cv2
 import requests
-import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -13,26 +12,16 @@ from infra.Database.database import engine, SessionLocal, get_db
 from infra.Database import crud, schema, login_services
 from models.segment_model import getting_segmet_model
 from models.classify_model import getting_classify_model
+
 app = FastAPI()
-# SQLModel.metadata.create_all(bind=engine)
+SQLModel.metadata.create_all(bind=engine)
 classify_model = getting_classify_model()
 segment_model = getting_segmet_model()
 
-class UserBase(BaseModel):
-    username: str
-    password: str
-
-
-class PredictionBase(BaseModel):
-    raw_image: str
-    segment_image: str
-    prediction_result: str
-
-
-
-def load_image_and_predict(url):
+def load_image_and_predict(url, userid):
     """
     :param url: Image URL
+    :param userid: User ID
     :return: Json response with label, prediction probabilities and segment result
     """
     response = requests.get(url)
@@ -40,8 +29,14 @@ def load_image_and_predict(url):
         return {"error": "Failed to retrieve image from the URL"}, 400
     np_arr = np.frombuffer(response.content, np.uint8)
     image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-    label, pred = predict_image(image,classify_model)
-    segment_result = predict(url, "test.jpg",segment_model)
+    label, pred = predict_image(image, classify_model)
+    segment_result = predict(url, "test.jpg", segment_model)
+    crud.create_prediction(next(get_db()), schema.PredictionCreate(
+        raw_image=url,
+        segment_image=segment_result,
+        prediction_result=label,
+        user_id=userid
+    ))
     return JSONResponse(
         content={
             "label": label,
@@ -55,10 +50,11 @@ def load_image_and_predict(url):
 async def predict_by_link(request: Request):
     data = await request.json()
     url = data.get("url")
+    userid = data.get("userid")
     if not url:
         return JSONResponse(content={"error": "URL is missing"}, status_code=400)
 
-    return load_image_and_predict(url)
+    return load_image_and_predict(url,userid)
 
 
 @app.post("/register/")
@@ -66,12 +62,33 @@ async def create_user(request: Request):
     data = await request.json()
     username = data.get("username")
     password = data.get("password")
-    print(username, password)
-    crud.create_user(get_db(), schema.UserCreate(username=username, password=password))
     if not username or not password:
         return JSONResponse(content={"error": "Username or password is missing"}, status_code=400)
+    if (crud.find_user_by_username(next(get_db()), username)):
+        return JSONResponse(content={"error": "User already exists"}, status_code=400)
+    crud.create_user(next(get_db()), schema.UserCreate(username=username, password=password))
     return JSONResponse(content={"message": "User created successfully"})
 
-
+@app.post("/login/")
+async def login(request: Request):
+    data = await request.json()
+    username = data.get("username")
+    password = data.get("password")
+    if not username or not password:
+        return JSONResponse(content={"error": "Username or password is missing"}, status_code=400)
+    user = login_services.authenticate_user(next(get_db()), username, password)
+    if not user:
+        return JSONResponse(content={"error": "Invalid credentials"}, status_code=401)
+    return JSONResponse(content={"message": "Login successful"})
+@app.get("/history/")
+async def get_history(request: Request):
+    userid = request.query_params.get("userid")
+    if not userid:
+        return JSONResponse(content={"error": "User id is missing"}, status_code=400)
+    predictions = crud.get_predictions(next(get_db()), user_id=int(userid))
+    print(predictions)
+    return JSONResponse(content={"predictions": [prediction.dict() for prediction in predictions]})
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=3100)
+    import uvicorn
+
+    uvicorn.run("main:app", host="0.0.0.0", port=3100, reload=True)

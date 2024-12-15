@@ -16,14 +16,17 @@ class User(UserBase):
     predictions: List["Prediction"] = []
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class PredictionBase(BaseModel):
     raw_image: str
     segment_image: str
     prediction_result: str
 
-class PredictionCreate(PredictionBase):
+class PredictionCreate(BaseModel):
+    raw_image: str
+    segment_image: str
+    prediction_result: str
     user_id: int
 
 class Prediction(PredictionBase):
@@ -31,4 +34,4 @@ class Prediction(PredictionBase):
     user_id: int
 
     class Config:
-        from_attributes = True
+        orm_mode = True

@@ -1,0 +1,13 @@
+version: '3.9'
+
+services:
+
+  db:
+    image: postgres:17.0
+    environment:
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: 'Password123'
+            POSTGRES_DB: Skin-Cancer
+
+    ports:
+      - "5432:5432"
