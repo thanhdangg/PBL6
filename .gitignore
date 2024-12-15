@@ -2,3 +2,6 @@ venv
 test.py
 models/**.keras
 .env
+deploy.py
+.idea
+__pycache__

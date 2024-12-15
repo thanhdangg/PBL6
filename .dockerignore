@@ -1,6 +1,3 @@
 .git*
 **/*.pyc
 venv/
-deploy.py
-.idea
-__pycache__
