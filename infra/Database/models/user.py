@@ -2,6 +2,7 @@
 from sqlmodel import SQLModel, Field, Relationship
 from shared.enum_role_user import User_role
 
+
 class User(SQLModel, table=True):
     __tablename__ = "User"
     id: int | None = Field(default=None, primary_key=True)

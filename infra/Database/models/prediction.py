@@ -1,6 +1,7 @@
 # infra/Database/models/prediction.py
 from sqlmodel import SQLModel, Field, Relationship
 
+
 class Prediction(SQLModel, table=True):
     __tablename__ = "Prediction"
     id: int | None = Field(default=None, primary_key=True)

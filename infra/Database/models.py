@@ -1,7 +1,7 @@
-
 from sqlmodel import SQLModel, Field, Relationship
 from shared.enum_role_user import User_role
 from database import Base
+
 
 class Prediction(Base):
     __tablename__ = "Prediction"
@@ -11,6 +11,8 @@ class Prediction(Base):
     prediction_result: str | None = Field(default=None)
     user_id: int | None = Field(default=None, foreign_key="User.id")
     user: "User" = Relationship(back_populates="predictions")
+
+
 class User(Base):
     __tablename__ = "User"
     id: int | None = Field(default=None, primary_key=True)
