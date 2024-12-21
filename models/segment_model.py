@@ -126,14 +126,14 @@ def predict(img_url, file_name, model_segment):
     print("Predict Mask shape: ", predicted_mask.shape)
     predicted_mask = predicted_mask[..., 0]
     plt.imsave(
-        "/mnt/01D9E8A400C52160/Ki7/pbl6/Skin-cancer-Analyzer/static/results/{}".format(
+        "static/results/{}".format(
             file_name
         ),
         predicted_mask,
         cmap="gray",
     )
     upload_result = cloudinary.uploader.upload(
-        "/mnt/01D9E8A400C52160/Ki7/pbl6/Skin-cancer-Analyzer/static/results/{}".format(
+        "static/results/{}".format(
             file_name
         )
     )

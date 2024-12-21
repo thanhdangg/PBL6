@@ -12,7 +12,8 @@ from infra.Database import crud, schema, login_services
 from models.segment_model import getting_segmet_model
 from models.classify_model import getting_classify_model
 
-app = FastAPI()
+app = FastAPI(
+)
 SQLModel.metadata.create_all(bind=engine)
 classify_model = getting_classify_model()
 segment_model = getting_segmet_model()
