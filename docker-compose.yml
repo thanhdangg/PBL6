@@ -16,4 +16,4 @@ services:
     command: python main.py
 
     ports:
-        - "3100:3100"
+        - "80:80"

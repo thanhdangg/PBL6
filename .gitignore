@@ -4,4 +4,21 @@ models/**.keras
 .env
 deploy.py
 .idea
-__pycache__
+# Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore compiled Python files in all directories
+**/__pycache__/
+**/*.pyc
+
+# Ignore specific modifications
+infra/Database/__pycache__/
+infra/__pycache__/
+models/__pycache__/
+shared/__pycache__/
+
+# Ignore the .gitignore itself
+!.gitignore

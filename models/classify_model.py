@@ -15,7 +15,7 @@ def getting_classify_model():
     model: keras.Model, pre-trained model
     """
     classify_model = load_model(
-        "/mnt/01D9E8A400C52160/Ki7/pbl6/Skin-cancer-Analyzer/models/skin-cancer-mnist-ham10000.keras"
+        "models/skin-cancer-mnist-ham10000.keras"
     )
     return classify_model
 

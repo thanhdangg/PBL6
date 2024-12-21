@@ -71,10 +71,11 @@ async def create_user(request: Request):
         )
     if crud.find_user_by_username(next(get_db()), username):
         return JSONResponse(content={"error": "User already exists"}, status_code=400)
-    crud.create_user(
+    user = crud.create_user(
         next(get_db()), schema.UserCreate(username=username, password=password)
     )
-    return JSONResponse(content={"message": "User created successfully"})
+    return JSONResponse(content={"message": "User created successfully",
+                                 "userid": user.id}, status_code=201)
 
 
 @app.post("/login/")
@@ -107,4 +108,4 @@ async def get_history(request: Request):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=3100, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=80, reload=True)

@@ -19,7 +19,7 @@ class User(UserBase):
     predictions: List["Prediction"] = []
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class PredictionBase(BaseModel):
@@ -40,4 +40,4 @@ class Prediction(PredictionBase):
     user_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True

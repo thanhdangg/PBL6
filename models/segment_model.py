@@ -93,7 +93,7 @@ def getting_segmet_model():
     get_custom_objects().update({"dice_coef": dice_coef})
     get_custom_objects().update({"bce_dice_loss_log": bce_dice_loss_log})
     model = tf.keras.models.load_model(
-        "/mnt/01D9E8A400C52160/Ki7/pbl6/Skin-cancer-Analyzer/models/saved_model_v3.keras"
+        "models/saved_model_v3.keras"
     )
     return model
 
