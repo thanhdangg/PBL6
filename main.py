@@ -89,10 +89,9 @@ async def login(request: Request):
             content={"error": "Username or password is missing"}, status_code=400
         )
     user = login_services.authenticate_user(next(get_db()), username, password)
-    userid = user.id
     if not user:
         return JSONResponse(content={"error": "Invalid credentials"}, status_code=401)
-    return JSONResponse(content={"userid": userid}, status_code=200)
+    return JSONResponse(content={"userid": user.id}, status_code=200)
 
 
 @app.get("/history/")
