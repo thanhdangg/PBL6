@@ -11,12 +11,15 @@ from infra.Database.database import engine, get_db
 from infra.Database import crud, schema, login_services
 from models.segment_model import getting_segmet_model
 from models.classify_model import getting_classify_model
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+
 
 app = FastAPI(
 )
 SQLModel.metadata.create_all(bind=engine)
 classify_model = getting_classify_model()
 segment_model = getting_segmet_model()
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*.ngrok.io", "localhost", "127.0.0.1"])
 
 
 def load_image_and_predict(url, userid):
@@ -66,6 +69,7 @@ async def create_user(request: Request):
     data = await request.json()
     username = data.get("username")
     password = data.get("password")
+    print(data)
     if not username or not password:
         return JSONResponse(
             content={"error": "Username or password is missing"}, status_code=400
@@ -108,4 +112,4 @@ async def get_history(request: Request):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=80, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=3100, proxy_headers=True)
