@@ -4,6 +4,7 @@ from torchvision import transforms
 from PIL import Image
 import numpy as np
 from model import UNet
+from model_no_weight import SEDU_Net_D3
 
 # Define attributes for lesion detection
 attributes = ["pigment_network", "negative_network", "streaks", "milia_like_cyst", "globules"]
@@ -52,15 +53,21 @@ if uploaded_file is not None:
     st.image(image, caption="Uploaded Image", use_column_width=True)
 
     # Load model
-    model = UNet()  # Initialize the UNet model
-    model_path = "./models/multi_task_unet.keras"  # Path to your trained model
-    model.load_state_dict(torch.load(model_path))
+    model = SEDU_Net_D3()  # Initialize the UNet model
+    model_path = "./models/multi_task_unet_bcdunet.keras"  # Path to your trained model
+    # model.load_state_dict(torch.load(model_path))
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
+    model = torch.load(model_path, map_location=device)
+    model.to(device)
+    model.eval()
     # Preprocess the uploaded image
     image_tensor = preprocess_image(image)
-
+    image_tensor = image_tensor.to(device)
+    with torch.no_grad():
+        outputs = model(image_tensor)    
+    st.write(outputs)
+    
     # Run the model and get predicted masks for the attributes
     st.write("Predicting lesion attributes...")
     predicted_masks = predict_attributes(model, image_tensor, device)

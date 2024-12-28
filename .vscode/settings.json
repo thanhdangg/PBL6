@@ -2,8 +2,10 @@
     "cSpell.words": [
         "astype",
         "BCDU",
+        "bcdunet",
         "biconv",
         "biconvlstm",
+        "binarize",
         "cmap",
         "coeff",
         "crossentropy",
@@ -18,6 +20,7 @@
         "keras",
         "mobilenet",
         "optim",
+        "oversample",
         "randn",
         "relu",
         "SEDU",
@@ -28,11 +31,18 @@
         "timestep",
         "torchvision",
         "tqdm",
+        "trống",
         "unet",
         "unsqueeze",
         "upconv",
         "Upsampling",
+        "vaidation",
         "xlabel",
         "ylabel"
-    ]
+    ],
+    "python.testing.pytestArgs": [
+        "Task2_Lesion_Attribute_Detection"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true
 }
