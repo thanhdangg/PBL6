@@ -22,15 +22,14 @@ def getting_classify_model():
 
 # Define the classes
 classes = {
-    4: ("nv", "melanocytic nevi"),
-    6: ("mel", "melanoma"),
-    2: ("bkl", "benign keratosis-like lesions"),
-    1: ("bcc", "basal cell carcinoma"),
-    5: ("vasc", "pyogenic granulomas and hemorrhage"),
     0: ("akiec", "Actinic keratoses and intraepithelial carcinomae"),
+    1: ("bcc", "basal cell carcinoma"),
+    2: ("bkl", "benign keratosis-like lesions"),
     3: ("df", "dermatofibroma"),
+    4: ("nv", "melanocytic nevi"),
+    5: ("vasc", "pyogenic granulomas and hemorrhage"),
+    6: ("mel", "melanoma"),
 }
-
 
 def predict_image(image, model):
     """

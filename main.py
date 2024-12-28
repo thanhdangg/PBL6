@@ -11,15 +11,12 @@ from infra.Database.database import engine, get_db
 from infra.Database import crud, schema, login_services
 from models.segment_model import getting_segmet_model
 from models.classify_model import getting_classify_model
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
-
-
-app = FastAPI(
-)
+from models.attribute_detection_model import getting_attribute_detection_model,detect_attributes
+app = FastAPI()
 SQLModel.metadata.create_all(bind=engine)
 classify_model = getting_classify_model()
 segment_model = getting_segmet_model()
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*.ngrok.io", "localhost", "127.0.0.1"])
+attribute_dectection_model = getting_attribute_detection_model()
 
 
 def load_image_and_predict(url, userid):
@@ -35,6 +32,7 @@ def load_image_and_predict(url, userid):
     image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
     label, pred = predict_image(image, classify_model)
     segment_result = predict(url, "test.jpg", segment_model)
+    attribute_result = detect_attributes(url,attribute_dectection_model)
     crud.create_prediction(
         next(get_db()),
         schema.PredictionCreate(
@@ -49,11 +47,12 @@ def load_image_and_predict(url, userid):
             "label": label,
             "prediction_probabilities": pred.flatten().tolist(),
             "segment_result": segment_result,
+            "attribute_result": attribute_result
         }
     )
 
 
-@app.post("/predict/")
+@app.post("/predict")
 async def predict_by_link(request: Request):
     data = await request.json()
     url = data.get("url")
@@ -64,12 +63,11 @@ async def predict_by_link(request: Request):
     return load_image_and_predict(url, userid)
 
 
-@app.post("/register/")
+@app.post("/register")
 async def create_user(request: Request):
     data = await request.json()
     username = data.get("username")
     password = data.get("password")
-    print(data)
     if not username or not password:
         return JSONResponse(
             content={"error": "Username or password is missing"}, status_code=400
@@ -83,7 +81,7 @@ async def create_user(request: Request):
                                  "userid": user.id}, status_code=201)
 
 
-@app.post("/login/")
+@app.post("/login")
 async def login(request: Request):
     data = await request.json()
     username = data.get("username")
@@ -93,12 +91,13 @@ async def login(request: Request):
             content={"error": "Username or password is missing"}, status_code=400
         )
     user = login_services.authenticate_user(next(get_db()), username, password)
+    userid = user.id
     if not user:
         return JSONResponse(content={"error": "Invalid credentials"}, status_code=401)
-    return JSONResponse(content={"userid": user.id}, status_code=200)
+    return JSONResponse(content={"userid": userid}, status_code=200)
 
 
-@app.get("/history/")
+@app.get("/history")
 async def get_history(request: Request):
     userid = request.query_params.get("userid")
     if not userid:
@@ -112,4 +111,4 @@ async def get_history(request: Request):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=3100, proxy_headers=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=80, reload=True)
